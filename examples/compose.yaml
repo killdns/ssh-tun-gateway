@@ -1,0 +1,31 @@
+services:
+  gateway:
+    image: ghcr.io/OWNER/ssh-tun-gateway:latest
+    container_name: ssh-tun-gateway
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    env_file:
+      - .env
+    volumes:
+      - ./config:/config:ro
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      tunnel:
+        ipv4_address: 172.30.255.2
+    # Port publishing is only needed when SOCKS clients connect through the
+    # Docker host. In that case set SOCKS_UDP_ADVERTISE_IP to the host LAN IP.
+    ports:
+      - "1080:1080/tcp"
+      - "20000-20031:20000-20031/udp"
+
+networks:
+  tunnel:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.255.0/24
+          gateway: 172.30.255.1

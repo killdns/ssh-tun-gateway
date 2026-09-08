@@ -1,0 +1,44 @@
+#!/bin/sh
+set -eu
+
+log() {
+  printf '%s %s\n' "$(date -Iseconds)" "$*"
+}
+
+fail() {
+  log "ERROR: $*" >&2
+  exit 1
+}
+
+CONFIG_FILE="${CONFIG_FILE:-/etc/ssh-tun-gateway.conf}"
+[ -r "$CONFIG_FILE" ] || fail "missing configuration: $CONFIG_FILE"
+
+# This file is root-owned and therefore safe to source.
+# shellcheck disable=SC1090
+. "$CONFIG_FILE"
+
+: "${TUN_DEVICE:?TUN_DEVICE is required}"
+: "${TUN_USER:?TUN_USER is required}"
+
+[ "$(id -u)" -eq 0 ] || fail "this command must run as root"
+id "$TUN_USER" >/dev/null 2>&1 || fail "user does not exist: $TUN_USER"
+
+case "${1:-}" in
+  start)
+    if ip link show dev "$TUN_DEVICE" >/dev/null 2>&1; then
+      fail "$TUN_DEVICE already exists; remove or rename the conflicting interface"
+    fi
+    ip tuntap add dev "$TUN_DEVICE" mode tun user "$TUN_USER"
+    ip link set dev "$TUN_DEVICE" up
+    log "Created persistent $TUN_DEVICE for $TUN_USER"
+    ;;
+  stop)
+    if ip link show dev "$TUN_DEVICE" >/dev/null 2>&1; then
+      ip tuntap delete dev "$TUN_DEVICE" mode tun
+      log "Removed $TUN_DEVICE"
+    fi
+    ;;
+  *)
+    fail "usage: $0 start|stop"
+    ;;
+esac

@@ -1,0 +1,11 @@
+.git
+.github
+dist
+docs
+examples
+server
+*.md
+*.tar
+*.tar.gz
+*.zip
+LICENSE

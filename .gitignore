@@ -1,0 +1,12 @@
+.env
+config/
+dist/
+*.key
+*.pem
+*.tar
+*.tar.gz
+*.zip
+id_*
+known_hosts
+.DS_Store
+Thumbs.db

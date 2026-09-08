@@ -1,0 +1,82 @@
+#!/bin/sh
+set -eu
+
+log() {
+  printf '%s %s\n' "$(date -Iseconds)" "$*"
+}
+
+fail() {
+  log "ERROR: $*" >&2
+  exit 1
+}
+
+CONFIG_DIR="${CONFIG_DIR:-/etc/ssh-tun-gateway}"
+SESSION_USER="${SUDO_USER:-}"
+
+if [ -n "$SESSION_USER" ] && [ "$SESSION_USER" != "root" ]; then
+  case "$SESSION_USER" in
+    *[!A-Za-z0-9_-]*) fail "unsupported SSH user name: $SESSION_USER" ;;
+  esac
+  CONFIG_FILE="${CONFIG_DIR}/${SESSION_USER}.conf"
+else
+  CONFIG_FILE="${CONFIG_FILE:-/etc/ssh-tun-gateway.conf}"
+fi
+
+[ -r "$CONFIG_FILE" ] || fail "missing configuration: $CONFIG_FILE"
+
+# This file is root-owned and therefore safe to source.
+# shellcheck disable=SC1090
+. "$CONFIG_FILE"
+
+: "${TUN_DEVICE:?TUN_DEVICE is required}"
+: "${TUN_USER:?TUN_USER is required}"
+: "${SERVER_TUN_IP:?SERVER_TUN_IP is required}"
+: "${CLIENT_TUN_IP:?CLIENT_TUN_IP is required}"
+: "${TUN_NETWORK:?TUN_NETWORK is required}"
+: "${WAN_INTERFACE:?WAN_INTERFACE is required}"
+
+if [ -n "$SESSION_USER" ] && [ "$SESSION_USER" != "root" ] && [ "$TUN_USER" != "$SESSION_USER" ]; then
+  fail "TUN_USER=$TUN_USER does not match authenticated user $SESSION_USER"
+fi
+
+TUN_MTU="${TUN_MTU:-1400}"
+IPTABLES_BIN="${IPTABLES_BIN:-iptables}"
+
+[ "$(id -u)" -eq 0 ] || fail "this command must run as root through sudo"
+command -v "$IPTABLES_BIN" >/dev/null 2>&1 || fail "$IPTABLES_BIN is not installed"
+
+elapsed=0
+while ! ip link show dev "$TUN_DEVICE" >/dev/null 2>&1; do
+  [ "$elapsed" -lt 10 ] || fail "$TUN_DEVICE was not created by sshd"
+  sleep 1
+  elapsed=$((elapsed + 1))
+done
+
+ip address replace "${SERVER_TUN_IP}/32" peer "${CLIENT_TUN_IP}/32" dev "$TUN_DEVICE"
+ip link set dev "$TUN_DEVICE" mtu "$TUN_MTU" up
+
+if [ "$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null || true)" != "1" ]; then
+  sysctl -w net.ipv4.ip_forward=1 >/dev/null
+fi
+
+"$IPTABLES_BIN" -C FORWARD -i "$TUN_DEVICE" -s "$TUN_NETWORK" -o "$WAN_INTERFACE" -j ACCEPT 2>/dev/null || \
+  "$IPTABLES_BIN" -I FORWARD 1 -i "$TUN_DEVICE" -s "$TUN_NETWORK" -o "$WAN_INTERFACE" -j ACCEPT
+
+"$IPTABLES_BIN" -C FORWARD -i "$WAN_INTERFACE" -o "$TUN_DEVICE" -d "$TUN_NETWORK" \
+  -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+  "$IPTABLES_BIN" -I FORWARD 1 -i "$WAN_INTERFACE" -o "$TUN_DEVICE" -d "$TUN_NETWORK" \
+    -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+"$IPTABLES_BIN" -t nat -C POSTROUTING -s "$TUN_NETWORK" -o "$WAN_INTERFACE" -j MASQUERADE 2>/dev/null || \
+  "$IPTABLES_BIN" -t nat -A POSTROUTING -s "$TUN_NETWORK" -o "$WAN_INTERFACE" -j MASQUERADE
+
+log "SSH TUN is ready: ${SERVER_TUN_IP} <-> ${CLIENT_TUN_IP}, WAN=${WAN_INTERFACE}"
+
+# tun0 is persistent so an unprivileged SSH account can attach to it. Keep the
+# forced command alive while its sshd/sudo parent exists.
+session_parent_pid="$PPID"
+while kill -0 "$session_parent_pid" 2>/dev/null; do
+  sleep 5
+done
+
+log "SSH session finished"

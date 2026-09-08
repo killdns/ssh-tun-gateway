@@ -1,0 +1,13 @@
+[Unit]
+Description=Persistent TUN device for an SSH gateway client
+After=network-pre.target
+Before=ssh.service sshd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/ssh-tun-device start
+ExecStop=/usr/local/sbin/ssh-tun-device stop
+
+[Install]
+WantedBy=multi-user.target
