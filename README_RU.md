@@ -2,6 +2,10 @@
 
 [English](README.md)
 
+[GitHub](https://github.com/killdns/ssh-tun-gateway) |
+[Образ в Docker Hub](https://hub.docker.com/r/killdns/ssh-tun-gateway) |
+[Релиз v0.1.0](https://github.com/killdns/ssh-tun-gateway/releases/tag/v0.1.0)
+
 `ssh-tun-gateway` - небольшой Linux-контейнер, который поднимает IPv4-туннель
 OpenSSH TUN типа point-to-point и может предоставлять его как:
 
@@ -72,8 +76,9 @@ X11 и TCP forwarding. Подробности находятся в
    ```
 
 3. Переименуйте `env.example` в `.env` и укажите свои адреса.
-4. В `compose.yaml` замените `ghcr.io/OWNER/ssh-tun-gateway:latest` на имя
-   опубликованного образа.
+4. В примере уже указан опубликованный образ
+   `docker.io/killdns/ssh-tun-gateway:0.1.0`. Для выбора другого релиза измените
+   только тег.
 5. Запустите контейнер:
 
    ```sh
@@ -91,7 +96,7 @@ docker run -d \
   --device /dev/net/tun:/dev/net/tun \
   --env-file .env \
   --mount type=bind,src="$PWD/config",dst=/config,readonly \
-  ghcr.io/OWNER/ssh-tun-gateway:latest
+  docker.io/killdns/ssh-tun-gateway:0.1.0
 ```
 
 ## Основные переменные
@@ -164,11 +169,19 @@ docker run -d \
 Перед импортом проверьте каждую переменную. В файлах используются тестовые
 адреса, а не значения конкретного сервера. Для RB4011 нужен `linux/arm/v7`.
 
-Создание TAR для импорта в RouterOS из опубликованного образа:
+Готовые архивы для импорта приложены к
+[релизу v0.1.0](https://github.com/killdns/ssh-tun-gateway/releases/tag/v0.1.0):
+
+- `ssh-tun-gateway-armv7.tar` для MikroTik RB4011;
+- `ssh-tun-gateway-arm64.tar` для 64-битных ARM-устройств;
+- `ssh-tun-gateway-amd64.tar` для устройств x86-64;
+- `SHA256SUMS.txt` для проверки загрузки.
+
+Также совместимый с RouterOS архив ARMv7 можно создать из образа Docker Hub:
 
 ```sh
-docker pull --platform linux/arm/v7 ghcr.io/OWNER/ssh-tun-gateway:1.0.0
-docker save -o ssh-tun-gateway-armv7.tar ghcr.io/OWNER/ssh-tun-gateway:1.0.0
+docker pull --platform linux/arm/v7 docker.io/killdns/ssh-tun-gateway:0.1.0
+docker save -o ssh-tun-gateway-armv7.tar docker.io/killdns/ssh-tun-gateway:0.1.0
 ```
 
 ## Локальная сборка
@@ -184,36 +197,39 @@ docker buildx build --platform linux/arm/v7 -t ssh-tun-gateway:armv7 --load .
 ```sh
 docker buildx build \
   --platform linux/amd64,linux/arm64,linux/arm/v7 \
-  -t REGISTRY/OWNER/ssh-tun-gateway:VERSION --push .
+  -t docker.io/killdns/ssh-tun-gateway:0.1.0 --push .
 ```
 
 ## Публикация через GitHub Actions
 
-Release-workflow публикует один и тот же образ в:
+Текущий публичный мультиплатформенный образ:
+`docker.io/killdns/ssh-tun-gateway:0.1.0`. Workflow публикации настроен на
+выгрузку одного и того же образа в:
 
-- `ghcr.io/<github-owner>/ssh-tun-gateway`;
-- `<dockerhub-username>/ssh-tun-gateway` на Docker Hub.
+- `ghcr.io/killdns/ssh-tun-gateway`;
+- `docker.io/killdns/ssh-tun-gateway`.
 
 В настройках GitHub-репозитория добавьте:
 
 | Тип | Имя | Значение |
 | --- | --- | --- |
-| Actions variable | `DOCKERHUB_USERNAME` | имя учётной записи Docker Hub |
+| Actions variable | `DOCKERHUB_USERNAME` | `killdns` |
 | Actions secret | `DOCKERHUB_TOKEN` | токен Docker Hub с правом записи |
 
-Перед первым запуском создайте репозиторий `ssh-tun-gateway` на Docker Hub.
-Для GHCR используется автоматически созданный `GITHUB_TOKEN`.
+Публичный репозиторий Docker Hub уже создан. Для GHCR используется
+автоматически созданный `GITHUB_TOKEN`.
 
-Публикация версии:
+Релиз `v0.1.0` уже опубликован. Пример публикации следующей исправительной
+версии:
 
 ```sh
-git tag -a v1.0.0 -m "Release v1.0.0"
-git push origin v1.0.0
+git tag -a v0.1.1 -m "Release v0.1.1"
+git push origin v0.1.1
 ```
 
-Будут опубликованы теги `1.0.0`, `1.0`, `1` и `latest`, а также SBOM и
-provenance сборки. Ручной запуск workflow позволяет выпустить отдельный тег,
-например `edge`, не изменяя `latest`.
+Этот тег опубликует `0.1.1`, `0.1`, `0` и `latest`, а также SBOM и provenance
+сборки максимального уровня. Ручной запуск workflow позволяет выпустить
+отдельный тег, например `edge`, не изменяя `latest`.
 
 ## Безопасность
 
