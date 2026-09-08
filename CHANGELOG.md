@@ -15,3 +15,8 @@ All notable changes to this project will be documented in this file.
 
 - Updated the build and runtime base to the supported Alpine Linux 3.24 branch.
 - GitHub Actions publication to GHCR and Docker Hub with SBOM and provenance.
+
+### Fixed
+
+- Server-side keepalives now reap SSH sessions left stale by abrupt client
+  reboots, allowing the assigned persistent TUN device to reconnect promptly.

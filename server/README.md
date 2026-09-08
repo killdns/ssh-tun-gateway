@@ -91,14 +91,37 @@ Expected effective restrictions:
 
 ```sh
 sudo sshd -T -C user=ssh-tunnel-1,host=localhost,addr=127.0.0.1 \
-  | grep -E 'permittunnel|forcecommand|passwordauthentication|allowtcpforwarding'
+  | grep -E 'permittunnel|forcecommand|passwordauthentication|allowtcpforwarding|clientalive'
 ```
 
 The result should include `permittunnel point-to-point`,
 `passwordauthentication no`, `allowtcpforwarding no`, and the forced session
-command.
+command. `clientaliveinterval 15` and `clientalivecountmax 3` release a TUN
+within approximately 45 seconds after a client disappears without closing its
+SSH connection.
 
 Limit the SSH port at the server firewall to known client source addresses.
+
+## Recover after a hard client reboot
+
+SSH status `255` is a generic connection failure. First inspect the OpenSSH
+message immediately before it in the container log. If the server reports
+`Tunnel device open failed`, or a reconnect cannot attach to its assigned
+`tunN`, the old `sshd` process may still consider the interrupted session alive.
+
+For a dedicated tunnel account, terminate the stale session with:
+
+```sh
+ps -eo pid,user,args | grep '[s]shd: ssh-tunnel-1'
+sudo pkill -TERM -u ssh-tunnel-1 || true
+sleep 5
+ps -eo pid,user,args | grep '[s]shd: ssh-tunnel-1' || true
+```
+
+The container reconnects automatically. Do not delete the persistent `tun0` or
+restart its systemd service: the stale SSH session, not the TUN device itself,
+is the problem. The server-side keepalive settings above prevent the interface
+from remaining occupied for long after future hard reboots.
 
 ## Add more clients
 

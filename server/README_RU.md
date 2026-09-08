@@ -90,13 +90,37 @@ sudo systemctl reload ssh
 
 ```sh
 sudo sshd -T -C user=ssh-tunnel-1,host=localhost,addr=127.0.0.1 \
-  | grep -E 'permittunnel|forcecommand|passwordauthentication|allowtcpforwarding'
+  | grep -E 'permittunnel|forcecommand|passwordauthentication|allowtcpforwarding|clientalive'
 ```
 
 Должны присутствовать `permittunnel point-to-point`,
 `passwordauthentication no`, `allowtcpforwarding no` и принудительная команда
-сессии. На межсетевом экране сервера ограничьте SSH-порт известными внешними
+сессии. Параметры `clientaliveinterval 15` и `clientalivecountmax 3` освобождают
+TUN не позднее чем примерно через 45 секунд после внезапного исчезновения
+клиента. На межсетевом экране сервера ограничьте SSH-порт известными внешними
 адресами клиентов.
+
+## Восстановление после жёсткой перезагрузки клиента
+
+Код SSH `255` означает общую ошибку подключения. Сначала найдите конкретное
+сообщение OpenSSH непосредственно перед ним в журнале контейнера. Если сервер
+пишет `Tunnel device open failed` или новый клиент не может занять свой `tunN`,
+старый процесс `sshd`, вероятно, ещё считает оборванную сессию активной.
+
+Для отдельной учётной записи туннеля старую сессию можно завершить так:
+
+```sh
+ps -eo pid,user,args | grep '[s]shd: ssh-tunnel-1'
+sudo pkill -TERM -u ssh-tunnel-1 || true
+sleep 5
+ps -eo pid,user,args | grep '[s]shd: ssh-tunnel-1' || true
+```
+
+Контейнер повторяет подключение автоматически. Не удаляйте постоянный `tun0` и
+не перезапускайте его systemd-сервис: проблема находится в старой SSH-сессии, а
+не в самом TUN-интерфейсе. Установленные выше server-side keepalive-параметры
+предотвращают длительное удержание интерфейса при следующих аварийных
+перезагрузках.
 
 ## Следующие клиенты
 
