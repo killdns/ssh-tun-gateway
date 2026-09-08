@@ -200,37 +200,6 @@ docker buildx build \
   -t docker.io/killdns/ssh-tun-gateway:0.1.0 --push .
 ```
 
-## Публикация через GitHub Actions
-
-Текущий публичный мультиплатформенный образ:
-`docker.io/killdns/ssh-tun-gateway:0.1.0`. Workflow публикации настроен на
-выгрузку одного и того же образа в:
-
-- `ghcr.io/killdns/ssh-tun-gateway`;
-- `docker.io/killdns/ssh-tun-gateway`.
-
-В настройках GitHub-репозитория добавьте:
-
-| Тип | Имя | Значение |
-| --- | --- | --- |
-| Actions variable | `DOCKERHUB_USERNAME` | `killdns` |
-| Actions secret | `DOCKERHUB_TOKEN` | токен Docker Hub с правом записи |
-
-Публичный репозиторий Docker Hub уже создан. Для GHCR используется
-автоматически созданный `GITHUB_TOKEN`.
-
-Релиз `v0.1.0` уже опубликован. Пример публикации следующей исправительной
-версии:
-
-```sh
-git tag -a v0.1.1 -m "Release v0.1.1"
-git push origin v0.1.1
-```
-
-Этот тег опубликует `0.1.1`, `0.1`, `0` и `latest`, а также SBOM и provenance
-сборки максимального уровня. Ручной запуск workflow позволяет выпустить
-отдельный тег, например `edge`, не изменяя `latest`.
-
 ## Безопасность
 
 Контейнер требует `NET_ADMIN` и является сетевым компонентом с повышенными
